@@ -17,7 +17,7 @@ async function askAI(prompt) {
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
-        model: "deepseek/deepseek-v4-flash:free",
+        model: "google/gemini-2.0-flash-exp:free",
         messages: [{ role: "user", content: prompt }],
       },
       {
