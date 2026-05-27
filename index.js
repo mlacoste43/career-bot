@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
+const express = require("express");
 
 const { VACANCY_PROMPT, HR_PROMPT } = require("./prompts");
 
@@ -75,35 +76,53 @@ bot.on("text", async (ctx) => {
 });
 
 // --------------------
-// WEBHOOK MODE FOR RENDER
+// RENDER WEBHOOK SETUP
 // --------------------
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 const WEBHOOK_PATH = `/webhook/${bot.secretPathComponent()}`;
+const WEBHOOK_URL = `${process.env.RENDER_EXTERNAL_URL}${WEBHOOK_PATH}`;
 
-// Запускаем вебхук
-bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}${WEBHOOK_PATH}`);
-
-// Создаём Express сервер (или используем встроенный в Telegraf)
-const express = require("express");
+// Создаём Express сервер
 const app = express();
 
+// Парсим JSON от Telegram
 app.use(express.json());
-app.use(bot.webhookCallback(WEBHOOK_PATH));
 
-app.get("/", (req, res) => {
-  res.send("Bot is running!");
+// Эндпоинт для вебхука Telegram
+app.post(WEBHOOK_PATH, (req, res) => {
+  bot.handleUpdate(req.body, res);
 });
 
-// Для пингования (чтобы бот не засыпал)
+// Health check для Render
+app.get("/", (req, res) => {
+  res.send("Bot is alive!");
+});
+
 app.get("/health", (req, res) => {
   res.send("OK");
 });
 
-app.listen(PORT, () => {
-  console.log(`Bot running on port ${PORT}`);
-  console.log(`Webhook path: ${WEBHOOK_PATH}`);
+// Запускаем сервер
+app.listen(PORT, "0.0.0.0", async () => {
+  console.log(`✅ Server running on port ${PORT}`);
+  
+  // Устанавливаем вебхук
+  try {
+    await bot.telegram.setWebhook(WEBHOOK_URL);
+    console.log(`✅ Webhook set to: ${WEBHOOK_URL}`);
+  } catch (error) {
+    console.error("❌ Webhook error:", error.message);
+  }
 });
 
 // Graceful shutdown
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+process.once("SIGINT", () => {
+  bot.stop("SIGINT");
+  process.exit(0);
+});
+process.once("SIGTERM", () => {
+  bot.stop("SIGTERM");
+  process.exit(0);
+});
+
+console.log("🤖 Bot starting...");
